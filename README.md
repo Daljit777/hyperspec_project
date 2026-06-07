@@ -11,22 +11,22 @@ Below are placeholders to showcase the active screens of HyperVision.
 ### 1. Dashboard Overview
 > *The central hub showing system statistics, active jobs, saved spectral profiles, and recently uploaded files.*
 
-`![HyperVision Dashboard](docs/dashboard.png)`
+![HyperVision Dashboard](docs/dashboard.png)
 
 ### 2. Interactive Spectral Cube Viewer
 > *A dark-themed, premium viewer that displays grayscale bands and false-color RGB composites. Users can click any pixel to instantly plot its spectral reflectance curve across VNIR/SWIR wavelengths.*
 
- `![Interactive Viewer](docs/viewer.png)`
+![Interactive Viewer](docs/viewer.png)
 
 ### 3. Radiometric & Atmospheric Corrections
 > *The corrections panel displaying a "Before vs. After" comparison side-by-side with corresponding histograms, tracking the execution logs of corrections.*
 
- `![Corrections View](docs/corrections.png)`
+![Corrections View](docs/corrections.png)
 
 ### 4. Advanced Analysis and Machine Learning
 > *The analysis dashboard displaying PCA Explained Variance, Pixel Purity Index (PPI) Endmember profiles, Spectral Angle Mapper (SAM) target classification maps, and supervised machine learning metrics.*
 
- `![Advanced Analysis](docs/analysis.png)`
+![Advanced Analysis](docs/analysis.png)
 ---
 
 ## 🚀 Key Features
