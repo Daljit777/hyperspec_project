@@ -1,0 +1,174 @@
+{% extends 'core/base.html' %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Mission Control{% endblock %}
+{% block content %}
+<div class="dashboard-grid">
+
+  <!-- Stat Cards -->
+  <section class="stats-row">
+    <div class="stat-card" style="--accent:#00d4ff">
+      <div class="stat-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
+        </svg>
+      </div>
+      <div class="stat-body">
+        <div class="stat-value" data-target="{{ total_files }}">0</div>
+        <div class="stat-label">Data Files</div>
+      </div>
+      <div class="stat-glow"></div>
+    </div>
+    <div class="stat-card" style="--accent:#39ff14">
+      <div class="stat-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/>
+        </svg>
+      </div>
+      <div class="stat-body">
+        <div class="stat-value" data-target="{{ done_jobs }}">0</div>
+        <div class="stat-label">Corrections Done</div>
+      </div>
+      <div class="stat-glow"></div>
+    </div>
+    <div class="stat-card" style="--accent:#b44fff">
+      <div class="stat-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+        </svg>
+      </div>
+      <div class="stat-body">
+        <div class="stat-value" data-target="{{ total_profiles }}">0</div>
+        <div class="stat-label">Spectral Profiles</div>
+      </div>
+      <div class="stat-glow"></div>
+    </div>
+    <div class="stat-card" style="--accent:#ff6b35">
+      <div class="stat-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+        </svg>
+      </div>
+      <div class="stat-body">
+        <div class="stat-value" data-target="{{ total_jobs }}">0</div>
+        <div class="stat-label">Total Jobs</div>
+      </div>
+      <div class="stat-glow"></div>
+    </div>
+  </section>
+
+  <!-- Quick Actions -->
+  <section class="quick-actions-card glass-card">
+    <h3 class="card-title">Quick Actions</h3>
+    <div class="quick-actions-grid">
+      <a href="{% url 'upload' %}" class="quick-btn" id="btn-import">
+        <div class="qb-icon" style="background:linear-gradient(135deg,#0052cc,#00d4ff)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+        </div>
+        <span>Import HE5 / TIFF</span>
+      </a>
+      {% if recent_files %}
+      <a href="{% url 'viewer' recent_files.0.pk %}" class="quick-btn" id="btn-viewer">
+        <div class="qb-icon" style="background:linear-gradient(135deg,#39ff14,#00b894)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+        </div>
+        <span>Open Viewer</span>
+      </a>
+      <a href="{% url 'corrections' recent_files.0.pk %}" class="quick-btn" id="btn-correct">
+        <div class="qb-icon" style="background:linear-gradient(135deg,#b44fff,#6c00ff)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/>
+          </svg>
+        </div>
+        <span>Run Corrections</span>
+      </a>
+      <a href="{% url 'analysis' recent_files.0.pk %}" class="quick-btn" id="btn-analysis">
+        <div class="qb-icon" style="background:linear-gradient(135deg,#ff6b35,#ff4500)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+          </svg>
+        </div>
+        <span>Spectral Analysis</span>
+      </a>
+      {% else %}
+      <div class="quick-btn disabled" style="opacity:.5;cursor:default">
+        <div class="qb-icon" style="background:linear-gradient(135deg,#39ff14,#00b894)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+          </svg>
+        </div>
+        <span>Open Viewer</span>
+      </div>
+      {% endif %}
+    </div>
+  </section>
+
+  <!-- Recent Files -->
+  <section class="glass-card" id="recent-files-card">
+    <div class="card-header-row">
+      <h3 class="card-title">Recent Files</h3>
+      <a href="{% url 'file_list' %}" class="btn-sm">View All →</a>
+    </div>
+    {% if recent_files %}
+    <div class="file-table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr><th>Name</th><th>Type</th><th>Bands</th><th>Size</th><th>Uploaded</th><th>Actions</th></tr>
+        </thead>
+        <tbody>
+          {% for f in recent_files %}
+          <tr>
+            <td class="file-name-cell">
+              <div class="file-type-badge badge-{{ f.file_type }}">{{ f.file_type|upper }}</div>
+              <span title="{{ f.name }}">{{ f.name|truncatechars:40 }}</span>
+            </td>
+            <td>{{ f.get_file_type_display }}</td>
+            <td>{% if f.vnir_bands %}{{ f.vnir_bands }}V+{{ f.swir_bands|default:0 }}S{% else %}{{ f.bands|default:"—" }}{% endif %}</td>
+            <td>{{ f.rows|default:"—" }} × {{ f.cols|default:"—" }}</td>
+            <td>{{ f.uploaded_at|date:"d M, H:i" }}</td>
+            <td class="action-cell">
+              <a href="{% url 'viewer' f.pk %}" class="icon-btn" title="Viewer">👁</a>
+              <a href="{% url 'corrections' f.pk %}" class="icon-btn" title="Corrections">⚙</a>
+              <a href="{% url 'analysis' f.pk %}" class="icon-btn" title="Analysis">📊</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <div class="empty-icon">🛰️</div>
+      <h4>No data files yet</h4>
+      <p>Import a PRISMA HE5 or GeoTIFF file to get started</p>
+      <a href="{% url 'upload' %}" class="btn-primary">Import Data</a>
+    </div>
+    {% endif %}
+  </section>
+
+  <!-- Recent Jobs -->
+  {% if recent_jobs %}
+  <section class="glass-card" id="recent-jobs-card">
+    <h3 class="card-title">Processing Log</h3>
+    <div class="jobs-list">
+      {% for job in recent_jobs %}
+      <div class="job-item">
+        <div class="job-type-badge">{{ job.get_job_type_display }}</div>
+        <div class="job-info">
+          <span class="job-file">{{ job.data_file.name|truncatechars:30 }}</span>
+          <span class="job-time">{{ job.created_at|date:"d M, H:i" }}</span>
+        </div>
+        <div class="job-status status-{{ job.status }}">{{ job.status|title }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+</div>
+{% endblock %}

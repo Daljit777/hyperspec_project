@@ -1,0 +1,325 @@
+{% extends 'core/base.html' %}
+{% block title %}Corrections — {{ df.name|truncatechars:25 }}{% endblock %}
+{% block page_title %}Corrections{% endblock %}
+{% with df as active_file %}
+{% block content %}
+<div class="corrections-layout">
+
+  <!-- Config Panel -->
+  <div class="corrections-config glass-card">
+    <h3 class="card-title">⚙ Correction Settings</h3>
+    <div class="file-badge">📡 {{ df.name|truncatechars:40 }}</div>
+
+    <div class="control-group">
+      <label>Correction Type</label>
+      <div class="corr-tabs" id="corrTabs">
+        <button class="corr-tab active" onclick="selectCorr('radiometric')" id="ct-radiometric">Radiometric</button>
+        <button class="corr-tab" onclick="selectCorr('atmospheric')" id="ct-atmospheric">Atmospheric</button>
+        <button class="corr-tab" onclick="selectCorr('geometric')" id="ct-geometric">Geometric</button>
+      </div>
+    </div>
+
+    <!-- Radiometric panel -->
+    <div id="cp-radiometric" class="corr-panel">
+      <div class="control-group">
+        <label>Method</label>
+        <select id="radio-method" class="select-input" onchange="onRadioMethodChange()">
+          <option value="dos">Dark Object Subtraction (DOS)</option>
+          <option value="gain_offset">Gain & Offset Correction</option>
+          <option value="prnu">PRNU (Pixel Response Non-Uniformity)</option>
+          <option value="dark_current">Dark Current Correction</option>
+          <option value="smear">Smear Correction</option>
+          <option value="smile">Smile Effect Correction</option>
+          <option value="keystone">Keystone Effect Correction</option>
+          <option value="scale_offset">Scale + Offset (DN → Radiance)</option>
+          <option value="normalize">Band Normalize [0–1]</option>
+          <option value="percentile">Percentile Stretch (2–98%)</option>
+        </select>
+      </div>
+      <div id="scale-offset-opts" class="hidden">
+        <div class="control-group">
+          <label>Scale / Gain Factor</label>
+          <input type="number" id="radio-scale" value="0.01" step="0.001" class="input-sm"/>
+        </div>
+        <div class="control-group">
+          <label>Offset</label>
+          <input type="number" id="radio-offset" value="0.0" step="0.001" class="input-sm"/>
+        </div>
+      </div>
+      <div class="control-group">
+        <label>Preview Band</label>
+        <input type="number" id="radio-band" value="10" min="0" max="{{ df.vnir_bands|default:65 }}" class="input-sm"/>
+      </div>
+      <div class="control-group">
+        <label>Sensor</label>
+        <select id="radio-sensor" class="select-input">
+          <option value="vnir">VNIR</option>
+          <option value="swir">SWIR</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Atmospheric panel -->
+    <div id="cp-atmospheric" class="corr-panel hidden">
+      <div class="control-group">
+        <label>Method</label>
+        <select id="atmo-method" class="select-input" onchange="onAtmoMethodChange()">
+          <option value="dos">Dark Object Subtraction (DOS)</option>
+          <option value="quac">QUAC (Quick Atmospheric Correction)</option>
+          <option value="6s">6S Model-Based (Radiative Transfer)</option>
+          <option value="empirical">Empirical Line (Percentile)</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label>Solar Zenith Angle (°)</label>
+        <input type="number" id="atmo-zenith" value="30" min="0" max="85" class="input-sm"/>
+      </div>
+      <div id="sixs-opts" class="hidden">
+        <div class="control-group">
+          <label>Visibility (km)</label>
+          <input type="number" id="atmo-visibility" value="23" min="1" max="100" class="input-sm"/>
+        </div>
+        <div class="control-group">
+          <label>Water Vapor (g/cm²)</label>
+          <input type="number" id="atmo-wv" value="2.5" step="0.1" class="input-sm"/>
+        </div>
+        <div class="control-group">
+          <label>Ozone (cm-atm)</label>
+          <input type="number" id="atmo-ozone" value="0.34" step="0.01" class="input-sm"/>
+        </div>
+      </div>
+      <div class="control-group">
+        <label>Preview Band</label>
+        <input type="number" id="atmo-band" value="20" min="0" max="{{ df.vnir_bands|default:65 }}" class="input-sm"/>
+      </div>
+      <div class="control-group">
+        <label>Sensor</label>
+        <select id="atmo-sensor" class="select-input">
+          <option value="vnir">VNIR</option>
+          <option value="swir">SWIR</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Geometric panel -->
+    <div id="cp-geometric" class="corr-panel hidden">
+      <div class="control-group">
+        <label>Method</label>
+        <select id="geo-method" class="select-input" onchange="onGeoMethodChange()">
+          <option value="flip">Flip / Rotate</option>
+          <option value="gcp">GCP (Ground Control Points)</option>
+          <option value="affine">Affine Georeferencing</option>
+          <option value="ortho">Orthorectification</option>
+        </select>
+      </div>
+      <div id="geo-flip-opts">
+        <div class="control-group">
+          <label>Transformations</label>
+          <label class="checkbox-label"><input type="checkbox" id="geo-flipud"> Flip Up–Down</label>
+          <label class="checkbox-label"><input type="checkbox" id="geo-fliplr"> Flip Left–Right</label>
+          <label class="checkbox-label mt-8">Rotate 90°:
+            <input type="number" id="geo-rotate" value="0" min="0" max="3" class="input-xs"/>× 90°
+          </label>
+        </div>
+      </div>
+      <div id="geo-affine-opts" class="hidden">
+        <div class="control-group">
+          <label>Scale X</label>
+          <input type="number" id="geo-sx" value="1.0" step="0.01" class="input-sm"/>
+        </div>
+        <div class="control-group">
+          <label>Scale Y</label>
+          <input type="number" id="geo-sy" value="1.0" step="0.01" class="input-sm"/>
+        </div>
+        <div class="control-group">
+          <label>Rotation (°)</label>
+          <input type="number" id="geo-rotation" value="0" step="0.5" class="input-sm"/>
+        </div>
+        <div class="control-group">
+          <label>Translate X (px)</label>
+          <input type="number" id="geo-tx" value="0" class="input-sm"/>
+        </div>
+        <div class="control-group">
+          <label>Translate Y (px)</label>
+          <input type="number" id="geo-ty" value="0" class="input-sm"/>
+        </div>
+      </div>
+      <div id="geo-ortho-opts" class="hidden">
+        <div class="control-group">
+          <label>DEM Scale Factor</label>
+          <input type="number" id="geo-dem-scale" value="0.001" step="0.0001" class="input-sm"/>
+        </div>
+      </div>
+      <div class="control-group">
+        <label>Preview Band</label>
+        <input type="number" id="geo-band" value="10" min="0" max="{{ df.vnir_bands|default:65 }}" class="input-sm"/>
+      </div>
+    </div>
+
+    <button class="btn-primary btn-full" onclick="runCorrection()" id="runCorrBtn">
+      <span id="runCorrText">▶ Run Correction</span>
+      <div class="btn-spinner hidden" id="runCorrSpinner"></div>
+    </button>
+
+    <!-- Job history -->
+    {% if jobs %}
+    <div class="job-history">
+      <h5>Job History</h5>
+      {% for job in jobs %}
+      <div class="job-item-sm">
+        <span class="badge-{{ job.status }}">{{ job.status|title }}</span>
+        <span>{{ job.get_job_type_display }}</span>
+        <span class="muted">{{ job.created_at|date:"d M H:i" }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Results Panel -->
+  <div class="corrections-results">
+    <div class="before-after-grid">
+      <div class="glass-card result-card" id="beforeCard">
+        <h4>Before Correction</h4>
+        <div class="result-img-wrap" id="beforeImgWrap">
+          <div class="empty-state-sm">Run a correction to see before/after comparison</div>
+        </div>
+      </div>
+      <div class="glass-card result-card" id="afterCard">
+        <h4>After Correction</h4>
+        <div class="result-img-wrap" id="afterImgWrap">
+          <div class="empty-state-sm">—</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="hist-grid">
+      <div class="glass-card" id="histBeforeCard">
+        <div id="histBefore" style="min-height:200px"></div>
+      </div>
+      <div class="glass-card" id="histAfterCard">
+        <div id="histAfter" style="min-height:200px"></div>
+      </div>
+    </div>
+
+    <div class="glass-card log-card hidden" id="logCard">
+      <h5>Processing Log</h5>
+      <pre id="corrLog" class="log-text"></pre>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const FILE_PK = {{ df.pk }};
+let activeCorr = 'radiometric';
+
+function selectCorr(type) {
+  activeCorr = type;
+  document.querySelectorAll('.corr-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('ct-' + type).classList.add('active');
+  document.querySelectorAll('.corr-panel').forEach(p => p.classList.add('hidden'));
+  document.getElementById('cp-' + type).classList.remove('hidden');
+}
+
+function onRadioMethodChange() {
+  const m = document.getElementById('radio-method').value;
+  document.getElementById('scale-offset-opts').classList.toggle('hidden',
+    m !== 'scale_offset' && m !== 'gain_offset');
+}
+
+function onAtmoMethodChange() {
+  const m = document.getElementById('atmo-method').value;
+  document.getElementById('sixs-opts').classList.toggle('hidden', m !== '6s');
+}
+
+function onGeoMethodChange() {
+  const m = document.getElementById('geo-method').value;
+  document.getElementById('geo-flip-opts').classList.toggle('hidden', m !== 'flip');
+  document.getElementById('geo-affine-opts').classList.toggle('hidden', m !== 'affine');
+  document.getElementById('geo-ortho-opts').classList.toggle('hidden', m !== 'ortho');
+}
+
+function runCorrection() {
+  const btn = document.getElementById('runCorrBtn');
+  document.getElementById('runCorrText').classList.add('hidden');
+  document.getElementById('runCorrSpinner').classList.remove('hidden');
+  btn.disabled = true;
+
+  let params = { correction: activeCorr };
+
+  if (activeCorr === 'radiometric') {
+    params.method   = document.getElementById('radio-method').value;
+    params.scale    = parseFloat(document.getElementById('radio-scale').value);
+    params.offset   = parseFloat(document.getElementById('radio-offset').value);
+    params.band_idx = parseInt(document.getElementById('radio-band').value);
+    params.sensor   = document.getElementById('radio-sensor').value;
+  } else if (activeCorr === 'atmospheric') {
+    params.method       = document.getElementById('atmo-method').value;
+    params.solar_zenith = parseFloat(document.getElementById('atmo-zenith').value);
+    params.band_idx     = parseInt(document.getElementById('atmo-band').value);
+    params.sensor       = document.getElementById('atmo-sensor').value;
+    if (params.method === '6s') {
+      params.visibility = parseFloat(document.getElementById('atmo-visibility').value);
+      params.water_vapor = parseFloat(document.getElementById('atmo-wv').value);
+      params.ozone = parseFloat(document.getElementById('atmo-ozone').value);
+    }
+  } else {
+    params.method   = document.getElementById('geo-method').value;
+    params.band_idx = parseInt(document.getElementById('geo-band').value);
+    params.sensor   = 'vnir';
+    if (params.method === 'flip') {
+      params.flip_ud   = document.getElementById('geo-flipud').checked;
+      params.flip_lr   = document.getElementById('geo-fliplr').checked;
+      params.rotate_90 = parseInt(document.getElementById('geo-rotate').value);
+    } else if (params.method === 'affine') {
+      params.scale_x    = parseFloat(document.getElementById('geo-sx').value);
+      params.scale_y    = parseFloat(document.getElementById('geo-sy').value);
+      params.rotation   = parseFloat(document.getElementById('geo-rotation').value);
+      params.translate_x = parseFloat(document.getElementById('geo-tx').value);
+      params.translate_y = parseFloat(document.getElementById('geo-ty').value);
+    } else if (params.method === 'ortho') {
+      params.dem_scale = parseFloat(document.getElementById('geo-dem-scale').value);
+    }
+  }
+
+  fetch(`/api/correct/${FILE_PK}/`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+    body: JSON.stringify(params)
+  })
+  .then(r => r.json())
+  .then(d => {
+    btn.disabled = false;
+    document.getElementById('runCorrText').classList.remove('hidden');
+    document.getElementById('runCorrSpinner').classList.add('hidden');
+    if (d.error) { alert('Error: ' + d.error); return; }
+
+    document.getElementById('beforeImgWrap').innerHTML = `<img src="data:image/png;base64,${d.before}" class="result-img"/>`;
+    document.getElementById('afterImgWrap').innerHTML  = `<img src="data:image/png;base64,${d.after}"  class="result-img"/>`;
+
+    if (d.hist_before) Plotly.newPlot('histBefore', ...parsePlotly(d.hist_before));
+    if (d.hist_after)  Plotly.newPlot('histAfter',  ...parsePlotly(d.hist_after));
+
+    document.getElementById('logCard').classList.remove('hidden');
+    document.getElementById('corrLog').textContent = d.log;
+  })
+  .catch(e => {
+    btn.disabled = false;
+    document.getElementById('runCorrText').classList.remove('hidden');
+    document.getElementById('runCorrSpinner').classList.add('hidden');
+    alert('Request failed: ' + e);
+  });
+}
+
+function parsePlotly(json) {
+  const d = JSON.parse(json);
+  return [d.data, d.layout, {responsive:true, displayModeBar:false}];
+}
+function getCsrf() {
+  const v = document.cookie.match('(^|;) ?csrftoken=([^;]*)(;|$)');
+  return v ? v[2] : null;
+}
+</script>
+{% endblock %}
+{% endwith %}

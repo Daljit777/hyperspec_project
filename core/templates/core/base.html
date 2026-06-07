@@ -1,0 +1,124 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>{% block title %}HyperVision{% endblock %} | PRISMA Dashboard</title>
+<meta name="description" content="HyperVision — Professional PRISMA Hyperspectral Data Analysis Dashboard"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<link rel="stylesheet" href="{% static 'css/style.css' %}"/>
+{% block extra_head %}{% endblock %}
+</head>
+<body>
+
+{% if user.is_authenticated %}
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <div class="brand-icon">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+        <rect width="28" height="28" rx="8" fill="url(#brandGrad)"/>
+        <path d="M6 14 Q14 4 22 14 Q14 24 6 14Z" fill="white" opacity="0.9"/>
+        <circle cx="14" cy="14" r="3" fill="white"/>
+        <defs><linearGradient id="brandGrad" x1="0" y1="0" x2="28" y2="28">
+          <stop offset="0%" stop-color="#0066cc"/>
+          <stop offset="100%" stop-color="#00d4ff"/>
+        </linearGradient></defs>
+      </svg>
+    </div>
+    <div class="brand-text">
+      <span class="brand-name">HyperVision</span>
+      <span class="brand-sub">PRISMA Analytics</span>
+    </div>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-section-label">MAIN</div>
+    <a href="{% url 'dashboard' %}" class="nav-item {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+        <rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>
+      </svg><span>Dashboard</span>
+    </a>
+    <a href="{% url 'upload' %}" class="nav-item {% if request.resolver_match.url_name == 'upload' %}active{% endif %}">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+      </svg><span>Import Data</span>
+    </a>
+    <a href="{% url 'file_list' %}" class="nav-item {% if request.resolver_match.url_name == 'file_list' %}active{% endif %}">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
+      </svg><span>My Files</span>
+    </a>
+    {% if active_file %}
+    <div class="nav-section-label">ACTIVE FILE</div>
+    <a href="{% url 'viewer' active_file.pk %}" class="nav-item {% if request.resolver_match.url_name == 'viewer' %}active{% endif %}">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+      </svg><span>Viewer</span>
+    </a>
+    <a href="{% url 'corrections' active_file.pk %}" class="nav-item {% if request.resolver_match.url_name == 'corrections' %}active{% endif %}">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/>
+      </svg><span>Corrections</span>
+    </a>
+    <a href="{% url 'analysis' active_file.pk %}" class="nav-item {% if request.resolver_match.url_name == 'analysis' %}active{% endif %}">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+      </svg><span>Analysis</span>
+    </a>
+    {% endif %}
+    <div class="nav-section-label">ACCOUNT</div>
+    <a href="{% url 'logout' %}" class="nav-item nav-item-danger">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
+        <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+      </svg><span>Logout</span>
+    </a>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="user-info">
+      <div class="user-avatar">{{ user.username|slice:":1"|upper }}</div>
+      <div class="user-details">
+        <span class="user-name">{{ user.username }}</span>
+        <span class="user-role">Analyst</span>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<div class="main-wrapper">
+  <header class="topbar">
+    <button class="sidebar-toggle" id="sidebarToggle">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+    <div class="topbar-title">{% block page_title %}Dashboard{% endblock %}</div>
+    <div class="topbar-right">
+      <div class="status-dot-wrap"><span class="status-dot online"></span><span>System Online</span></div>
+    </div>
+  </header>
+  <main class="content-area">
+    {% if messages %}
+    <div class="messages-wrap">
+      {% for msg in messages %}
+      <div class="alert alert-{{ msg.tags }}">
+        <span>{{ msg }}</span>
+        <button onclick="this.parentElement.remove()">✕</button>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</div>
+{% endif %}
+
+<script src="{% static 'js/dashboard.js' %}"></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

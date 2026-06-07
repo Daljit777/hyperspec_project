@@ -1,0 +1,136 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Login | HyperVision</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="{% static 'css/style.css' %}"/>
+</head>
+<body>
+<div class="login-page">
+  <div class="login-bg">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+    <canvas id="spectralCanvas"></canvas>
+  </div>
+
+  <div class="login-container">
+    <div class="login-brand">
+      <div class="login-logo">
+        <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
+          <rect width="56" height="56" rx="16" fill="url(#lg1)"/>
+          <path d="M10 28 Q28 8 46 28 Q28 48 10 28Z" fill="white" opacity="0.9"/>
+          <circle cx="28" cy="28" r="6" fill="white"/>
+          <defs><linearGradient id="lg1" x1="0" y1="0" x2="56" y2="56">
+            <stop offset="0%" stop-color="#0052cc"/>
+            <stop offset="100%" stop-color="#00d4ff"/>
+          </linearGradient></defs>
+        </svg>
+      </div>
+      <h1 class="login-title">HyperVision</h1>
+      <p class="login-subtitle">PRISMA Hyperspectral Analysis Platform</p>
+    </div>
+
+    <div class="login-card">
+      <div class="login-card-header">
+        <h2>Sign In</h2>
+        <p>Access your spectral workspace</p>
+      </div>
+
+      {% if messages %}
+      {% for msg in messages %}
+      <div class="login-error">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        {{ msg }}
+      </div>
+      {% endfor %}
+      {% endif %}
+
+      <form method="post" class="login-form" id="loginForm">
+        {% csrf_token %}
+        <div class="form-group">
+          <label for="username">Username</label>
+          <div class="input-wrap">
+            <svg class="input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
+            </svg>
+            <input type="text" id="username" name="username" placeholder="Enter username" autocomplete="username" required/>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <div class="input-wrap">
+            <svg class="input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+            </svg>
+            <input type="password" id="password" name="password" placeholder="Enter password" autocomplete="current-password" required/>
+            <button type="button" class="toggle-pwd" onclick="togglePassword()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <button type="submit" class="btn-primary btn-login" id="loginBtn">
+          <span id="loginText">Sign In</span>
+          <div class="btn-spinner hidden" id="loginSpinner"></div>
+        </button>
+      </form>
+
+      <div class="login-footer">
+        <p>HyperVision v1.0 &nbsp;|&nbsp; PRISMA Spectral Analysis</p>
+      </div>
+    </div>
+
+    <div class="spectral-strip">
+      <div class="strip-band" style="flex:10"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('spectralCanvas');
+const ctx2 = canvas.getContext('2d');
+function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+resize();
+window.addEventListener('resize', resize);
+
+const lines = Array.from({length:25}, () => ({
+  x: Math.random() * canvas.width, y: Math.random() * canvas.height,
+  speed: 0.2 + Math.random() * 0.6, hue: Math.random() * 260 + 160,
+  w: 1 + Math.random() * 2, alpha: 0.08 + Math.random() * 0.25,
+  len: 100 + Math.random() * 250,
+}));
+
+function animateCanvas() {
+  ctx2.clearRect(0, 0, canvas.width, canvas.height);
+  lines.forEach(l => {
+    ctx2.strokeStyle = `hsla(${l.hue},75%,60%,${l.alpha})`;
+    ctx2.lineWidth = l.w;
+    ctx2.beginPath(); ctx2.moveTo(l.x, l.y); ctx2.lineTo(l.x + l.len, l.y); ctx2.stroke();
+    l.y -= l.speed;
+    if (l.y < -10) { l.y = canvas.height + 10; l.x = Math.random() * canvas.width; }
+  });
+  requestAnimationFrame(animateCanvas);
+}
+animateCanvas();
+
+function togglePassword() {
+  const p = document.getElementById('password');
+  p.type = p.type === 'password' ? 'text' : 'password';
+}
+
+document.getElementById('loginForm').addEventListener('submit', function() {
+  document.getElementById('loginText').classList.add('hidden');
+  document.getElementById('loginSpinner').classList.remove('hidden');
+  document.getElementById('loginBtn').disabled = true;
+});
+</script>
+</body>
+</html>

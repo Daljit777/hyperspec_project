@@ -1,0 +1,62 @@
+{% extends 'core/base.html' %}
+{% block title %}My Files{% endblock %}
+{% block page_title %}Data Files{% endblock %}
+{% block content %}
+<div class="glass-card">
+  <div class="card-header-row">
+    <h3 class="card-title">📂 All Data Files</h3>
+    <a href="{% url 'upload' %}" class="btn-primary">+ Import New</a>
+  </div>
+
+  {% if files %}
+  <div class="file-table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Dimensions</th>
+          <th>Bands</th>
+          <th>Status</th>
+          <th>Uploaded</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in files %}
+        <tr>
+          <td class="file-name-cell">
+            <span class="file-type-badge badge-{{ f.file_type }}">{{ f.file_type|upper }}</span>
+            <span title="{{ f.name }}">{{ f.name|truncatechars:45 }}</span>
+          </td>
+          <td>{{ f.get_file_type_display }}</td>
+          <td>{{ f.rows|default:"—" }} × {{ f.cols|default:"—" }}</td>
+          <td>
+            {% if f.vnir_bands %}{{ f.vnir_bands }}V {% endif %}
+            {% if f.swir_bands %}+ {{ f.swir_bands }}S{% endif %}
+            {% if not f.vnir_bands and not f.swir_bands %}{{ f.bands|default:"—" }}{% endif %}
+          </td>
+          <td><span class="status-badge status-{{ f.status }}">{{ f.status|title }}</span></td>
+          <td>{{ f.uploaded_at|date:"d M Y, H:i" }}</td>
+          <td class="action-cell">
+            <a href="{% url 'viewer' f.pk %}" class="btn-sm" title="Viewer">👁 View</a>
+            <a href="{% url 'corrections' f.pk %}" class="btn-sm" title="Corrections">⚙ Correct</a>
+            <a href="{% url 'analysis' f.pk %}" class="btn-sm" title="Analysis">📊 Analyse</a>
+            <a href="{% url 'delete_file' f.pk %}" class="btn-sm btn-danger"
+              onclick="return confirm('Delete {{ f.name|truncatechars:20|escapejs }}?')">🗑</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-icon">🛰️</div>
+    <h4>No files imported yet</h4>
+    <p>Import a PRISMA HE5 or GeoTIFF file to get started.</p>
+    <a href="{% url 'upload' %}" class="btn-primary">Import Data</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,404 @@
+{% extends 'core/base.html' %}
+{% load static %}
+{% block title %}Viewer — {{ df.name|truncatechars:30 }}{% endblock %}
+{% block page_title %}Hyperspectral Viewer{% endblock %}
+{% block extra_head %}
+<style>
+  .viewer-layout { display:grid; grid-template-columns:260px 1fr 300px; gap:12px; height:calc(100vh - 90px); }
+  @media(max-width:1100px) { .viewer-layout { grid-template-columns:1fr; height:auto; } }
+</style>
+{% endblock %}
+
+{% with df as active_file %}
+{% block content %}
+<div class="viewer-layout" id="viewerLayout">
+
+  <!-- LEFT: Band Control Panel -->
+  <aside class="viewer-panel glass-card" id="bandPanel">
+    <div class="panel-header">
+      <h4>📡 {{ df.name|truncatechars:25 }}</h4>
+      <div class="file-meta">
+        <span>{{ df.rows }}×{{ df.cols }}</span>
+        <span>{{ df.vnir_bands }}V + {{ df.swir_bands }}S bands</span>
+      </div>
+    </div>
+
+    <!-- Sensor selector -->
+    <div class="control-group">
+      <label>Sensor</label>
+      <div class="radio-group">
+        <label class="radio-opt">
+          <input type="radio" name="sensor" value="vnir" checked onchange="onSensorChange()"> VNIR
+        </label>
+        <label class="radio-opt">
+          <input type="radio" name="sensor" value="swir" onchange="onSensorChange()"> SWIR
+        </label>
+      </div>
+    </div>
+
+    <!-- View mode -->
+    <div class="control-group">
+      <label>View Mode</label>
+      <div class="btn-group-toggle">
+        <button class="toggle-btn active" id="mode-single" onclick="setMode('single')">Single Band</button>
+        <button class="toggle-btn" id="mode-rgb" onclick="setMode('rgb')">RGB Composite</button>
+      </div>
+    </div>
+
+    <!-- Single Band controls -->
+    <div id="single-controls">
+      <div class="control-group">
+        <label>Band Index: <span id="bandLabel" class="accent-text">0</span></label>
+        <input type="range" id="bandSlider" min="0" max="{{ vnir_bands|add:'-1' }}"
+               value="0" oninput="onBandSlide(this.value)" class="slider"/>
+        <div class="wavelength-display" id="wlDisplay">λ = — nm</div>
+      </div>
+      <div class="control-group">
+        <label>Colormap</label>
+        <select id="cmapSelect" class="select-input" onchange="loadBandImage()">
+          <option value="inferno">Inferno</option>
+          <option value="viridis">Viridis</option>
+          <option value="plasma">Plasma</option>
+          <option value="gray">Grayscale</option>
+          <option value="jet">Jet</option>
+          <option value="hot">Hot</option>
+          <option value="cool">Cool</option>
+          <option value="RdYlBu">RdYlBu</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- RGB controls -->
+    <div id="rgb-controls" class="hidden">
+      <div class="control-group">
+        <label>Red Band: <span id="rLabel">29</span></label>
+        <input type="range" id="rSlider" min="0" max="{{ vnir_bands|add:'-1' }}" value="29"
+               oninput="document.getElementById('rLabel').textContent=this.value" class="slider slider-r"/>
+      </div>
+      <div class="control-group">
+        <label>Green Band: <span id="gLabel">19</span></label>
+        <input type="range" id="gSlider" min="0" max="{{ vnir_bands|add:'-1' }}" value="19"
+               oninput="document.getElementById('gLabel').textContent=this.value" class="slider slider-g"/>
+      </div>
+      <div class="control-group">
+        <label>Blue Band: <span id="bLabel">9</span></label>
+        <input type="range" id="bSlider" min="0" max="{{ vnir_bands|add:'-1' }}" value="9"
+               oninput="document.getElementById('bLabel').textContent=this.value" class="slider slider-b"/>
+      </div>
+      <button class="btn-primary btn-sm-full" onclick="loadRGBImage()">Render RGB</button>
+    </div>
+
+    <!-- Tools -->
+    <div class="control-group">
+      <label>Tool</label>
+      <div class="tool-btns">
+        <button class="tool-btn active" id="tool-pick" onclick="setTool('pick')" title="Pick pixel">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+        <button class="tool-btn" id="tool-zoom" onclick="setTool('zoom')" title="Zoom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            <line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Saved Profiles -->
+    {% if saved_profiles %}
+    <div class="control-group">
+      <label>Saved Profiles ({{ saved_profiles|length }})</label>
+      <div class="profile-list-mini">
+        {% for p in saved_profiles %}
+        <div class="profile-mini-item">
+          <span>{{ p.label }} ({{ p.row }},{{ p.col }})</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <a href="{% url 'corrections' df.pk %}" class="btn-outline btn-sm-full mt-auto">⚙ Open Corrections</a>
+    <a href="{% url 'analysis' df.pk %}" class="btn-outline btn-sm-full">📊 Open Analysis</a>
+  </aside>
+
+  <!-- CENTER: Image Display -->
+  <div class="viewer-center">
+    <div class="image-canvas-wrap glass-card" id="imageWrap">
+      <div class="image-toolbar">
+        <span id="imgStatus" class="img-status">Click "Load" or adjust band slider</span>
+        <div class="toolbar-right">
+          <span id="pixelCoords" class="pixel-coords">—</span>
+        </div>
+      </div>
+      <div class="image-canvas-area" id="imageArea">
+        <div class="loading-overlay hidden" id="imgLoading">
+          <div class="spinner-ring"></div>
+          <span>Rendering band...</span>
+        </div>
+        <img id="bandImg" src="" alt="Band Image" class="band-image hidden"
+             onclick="onImageClick(event)" style="cursor:crosshair"/>
+        <div class="empty-canvas" id="emptyCanvas">
+          <div style="font-size:3rem">🛰️</div>
+          <p>Adjust the band slider to render an image</p>
+          <button class="btn-primary" onclick="loadBandImage()">Load Band 0</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pixel info bar -->
+    <div class="pixel-info-bar glass-card hidden" id="pixelInfoBar">
+      <span id="pixelInfoText">Click a pixel on the image to extract its spectral signature</span>
+    </div>
+  </div>
+
+  <!-- RIGHT: Spectral Profile Panel -->
+  <aside class="viewer-panel glass-card" id="spectralPanel">
+    <div class="panel-header">
+      <h4>📈 Spectral Profile</h4>
+      <button class="icon-btn" onclick="clearProfiles()" title="Clear all">🗑</button>
+    </div>
+
+    <div id="spectralChart" style="width:100%;min-height:250px">
+      <div class="empty-state-sm">Click any pixel on the image</div>
+    </div>
+
+    <div class="profile-controls hidden" id="profileControls">
+      <div class="form-group-sm">
+        <input type="text" id="profileLabel" placeholder="Profile label..." class="input-sm"/>
+      </div>
+      <div class="profile-action-row">
+        <button class="btn-primary btn-xs" onclick="saveProfile()">💾 Save</button>
+        <button class="btn-outline btn-xs" onclick="addToComparison()">➕ Compare</button>
+      </div>
+    </div>
+
+    <!-- Comparison chart -->
+    <div id="comparisonSection" class="hidden">
+      <div class="panel-divider"></div>
+      <h5>🔀 Comparison</h5>
+      <div id="comparisonChart" style="width:100%;min-height:200px"></div>
+      <button class="btn-outline btn-xs" onclick="clearComparison()">Clear</button>
+    </div>
+  </aside>
+
+</div>
+
+<script>
+const FILE_PK = {{ df.pk }};
+const VNIR_WL = {{ wavelengths_vnir }};
+const SWIR_WL = {{ wavelengths_swir }};
+const N_VNIR  = {{ vnir_bands }};
+const N_SWIR  = {{ swir_bands }};
+
+let currentMode   = 'single';
+let currentTool   = 'pick';
+let currentSensor = 'vnir';
+let currentSpectrum = null;
+let currentRow = null, currentCol = null;
+let comparisonProfiles = [];
+let imgNaturalW = 1, imgNaturalH = 1;
+
+// ── Mode / tool toggles ───────────────────────────────────────────────────
+function setMode(mode) {
+  currentMode = mode;
+  ['single','rgb'].forEach(m => {
+    document.getElementById('mode-'+m).classList.toggle('active', m===mode);
+    document.getElementById(m+'-controls').classList.toggle('hidden', m!==mode);
+  });
+  if (mode === 'single') loadBandImage();
+}
+
+function setTool(t) {
+  currentTool = t;
+  document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tool-'+t).classList.add('active');
+  document.getElementById('bandImg').style.cursor = t==='pick' ? 'crosshair' : 'zoom-in';
+}
+
+function onSensorChange() {
+  currentSensor = document.querySelector('input[name=sensor]:checked').value;
+  const maxBand = currentSensor === 'vnir' ? N_VNIR-1 : N_SWIR-1;
+  const slider = document.getElementById('bandSlider');
+  slider.max = maxBand;
+  slider.value = 0;
+  // Also update RGB sliders
+  ['rSlider','gSlider','bSlider'].forEach(id => {
+    const s = document.getElementById(id);
+    s.max = maxBand;
+    if (parseInt(s.value) > maxBand) s.value = Math.min(parseInt(s.value), maxBand);
+  });
+  onBandSlide(0);
+  loadBandImage();
+}
+
+// Pre-create debounced band loader
+let _bandLoadTimer = null;
+const debouncedLoadBand = function() {
+  clearTimeout(_bandLoadTimer);
+  _bandLoadTimer = setTimeout(loadBandImage, 400);
+};
+
+function onBandSlide(val) {
+  val = parseInt(val);
+  document.getElementById('bandLabel').textContent = val;
+  const wls = currentSensor === 'vnir' ? VNIR_WL : SWIR_WL;
+  if (wls && wls[val]) {
+    document.getElementById('wlDisplay').textContent = 'λ = ' + wls[val].toFixed(1) + ' nm';
+  }
+  debouncedLoadBand();
+}
+
+// ── Image loading ─────────────────────────────────────────────────────────
+function loadBandImage() {
+  const band = parseInt(document.getElementById('bandSlider').value);
+  const cmap = document.getElementById('cmapSelect').value;
+  showImgLoading();
+  fetch(`/api/band-image/${FILE_PK}/?band=${band}&sensor=${currentSensor}&cmap=${cmap}`)
+    .then(r => r.json())
+    .then(d => {
+      if (d.error) { showImgError(d.error); return; }
+      displayImage('data:image/png;base64,' + d.image);
+      document.getElementById('imgStatus').textContent =
+        `${currentSensor.toUpperCase()} Band ${band}` + (d.wavelength ? ` | λ=${d.wavelength.toFixed(1)}nm` : '');
+    })
+    .catch(e => showImgError(e.toString()));
+}
+
+function loadRGBImage() {
+  const r = document.getElementById('rSlider').value;
+  const g = document.getElementById('gSlider').value;
+  const b = document.getElementById('bSlider').value;
+  showImgLoading();
+  fetch(`/api/rgb-image/${FILE_PK}/?r=${r}&g=${g}&b=${b}&sensor=${currentSensor}`)
+    .then(r => r.json())
+    .then(d => {
+      if (d.error) { showImgError(d.error); return; }
+      displayImage('data:image/png;base64,' + d.image);
+      document.getElementById('imgStatus').textContent = `RGB Composite (B${r},B${g},B${b})`;
+    })
+    .catch(e => showImgError(e.toString()));
+}
+
+function displayImage(src) {
+  const img = document.getElementById('bandImg');
+  img.src = src;
+  img.classList.remove('hidden');
+  document.getElementById('emptyCanvas').classList.add('hidden');
+  document.getElementById('imgLoading').classList.add('hidden');
+  img.onload = () => { imgNaturalW = img.naturalWidth; imgNaturalH = img.naturalHeight; };
+}
+
+function showImgLoading() {
+  document.getElementById('imgLoading').classList.remove('hidden');
+  document.getElementById('emptyCanvas').classList.add('hidden');
+}
+function showImgError(msg) {
+  document.getElementById('imgLoading').classList.add('hidden');
+  document.getElementById('imgStatus').textContent = '⚠ ' + msg;
+}
+
+// ── Pixel click → spectral profile ───────────────────────────────────────
+function onImageClick(e) {
+  if (currentTool !== 'pick') return;
+  const img = document.getElementById('bandImg');
+  const rect = img.getBoundingClientRect();
+  const scaleX = imgNaturalW / rect.width;
+  const scaleY = imgNaturalH / rect.height;
+  const px = Math.floor((e.clientX - rect.left) * scaleX);
+  const py = Math.floor((e.clientY - rect.top)  * scaleY);
+
+  // Clamp to image bounds (img is rows×cols but displayed width×height)
+  const row = Math.max(0, Math.min(py, {{ df.rows|default:1000 }} - 1));
+  const col = Math.max(0, Math.min(px, {{ df.cols|default:1000 }} - 1));
+
+  document.getElementById('pixelCoords').textContent = `Pixel (${row}, ${col})`;
+  document.getElementById('pixelInfoBar').classList.remove('hidden');
+  document.getElementById('pixelInfoText').textContent = `Loading spectral profile at (${row}, ${col})...`;
+
+  fetch(`/api/spectral-profile/${FILE_PK}/?row=${row}&col=${col}&sensor=${currentSensor}`)
+    .then(r => r.json())
+    .then(d => {
+      if (d.error) { alert('Error: ' + d.error); return; }
+      currentSpectrum = d;
+      currentRow = row; currentCol = col;
+      const chartData = JSON.parse(d.chart);
+      Plotly.newPlot('spectralChart', chartData.data, chartData.layout,
+                     {responsive:true, displayModeBar:false});
+      document.getElementById('profileControls').classList.remove('hidden');
+      document.getElementById('pixelInfoText').textContent =
+        `Spectral profile at pixel (${row}, ${col}) | ${currentSensor.toUpperCase()} | ${d.spectrum.length} bands`;
+    })
+    .catch(e => { document.getElementById('pixelInfoText').textContent = '⚠ Error: ' + e; });
+}
+
+// ── Profile management ────────────────────────────────────────────────────
+function saveProfile() {
+  if (!currentSpectrum) return;
+  const label = document.getElementById('profileLabel').value || `Profile (${currentRow},${currentCol})`;
+  fetch(`/api/save-profile/${FILE_PK}/`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','X-CSRFToken':getCookie('csrftoken')},
+    body: JSON.stringify({
+      label, row: currentRow, col: currentCol,
+      spectrum: currentSpectrum.spectrum,
+      wavelengths: currentSpectrum.wavelengths,
+      sensor: currentSensor,
+    })
+  }).then(r => r.json()).then(d => {
+    showToast('Profile "' + d.label + '" saved!');
+  });
+}
+
+function addToComparison() {
+  if (!currentSpectrum) return;
+  comparisonProfiles.push({
+    spectrum: currentSpectrum.spectrum,
+    wavelengths: currentSpectrum.wavelengths,
+    label: `(${currentRow},${currentCol})`,
+  });
+  renderComparison();
+}
+
+function renderComparison() {
+  if (!comparisonProfiles.length) return;
+  document.getElementById('comparisonSection').classList.remove('hidden');
+  const colors = ['#00d4ff','#39ff14','#ff6b35','#b44fff','#ffeb3b'];
+  const traces = comparisonProfiles.map((p,i) => ({
+    x: p.wavelengths, y: p.spectrum, mode:'lines',
+    name: p.label, line:{color:colors[i%colors.length], width:2}
+  }));
+  Plotly.newPlot('comparisonChart', traces, {
+    paper_bgcolor:'#0d1926', plot_bgcolor:'#111d2e',
+    xaxis:{color:'#a0b4c8', gridcolor:'#1e3a5a', title:'Wavelength (nm)'},
+    yaxis:{color:'#a0b4c8', gridcolor:'#1e3a5a'},
+    font:{color:'#a0b4c8'}, margin:{l:40,r:10,t:20,b:40},
+    legend:{bgcolor:'#0d1926'}
+  }, {responsive:true, displayModeBar:false});
+}
+
+function clearProfiles()    { Plotly.purge('spectralChart'); document.getElementById('profileControls').classList.add('hidden'); }
+function clearComparison()  { comparisonProfiles=[]; Plotly.purge('comparisonChart'); document.getElementById('comparisonSection').classList.add('hidden'); }
+
+// ── Utility ───────────────────────────────────────────────────────────────
+
+function getCookie(name) {
+  const v = document.cookie.match('(^|;) ?' + name + '=([^;]*)(;|$)');
+  return v ? v[2] : null;
+}
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast'; t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+// Auto-load first band on page load
+window.addEventListener('DOMContentLoaded', () => {
+  setTimeout(loadBandImage, 500);
+});
+</script>
+{% endblock %}
+{% endwith %}

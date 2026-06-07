@@ -1,0 +1,542 @@
+{% extends 'core/base.html' %}
+{% block title %}Analysis — {{ df.name|truncatechars:25 }}{% endblock %}
+{% block page_title %}Spectral Analysis{% endblock %}
+{% with df as active_file %}
+{% block content %}
+<div class="analysis-layout">
+
+  <!-- Config sidebar -->
+  <div class="analysis-config glass-card">
+    <h3 class="card-title">📊 Analysis Tools</h3>
+    <div class="file-badge">📡 {{ df.name|truncatechars:35 }}</div>
+
+    <!-- Analysis tabs -->
+    <div class="analysis-tabs">
+      <button class="at-btn active" onclick="selectAnalysis('indices')" id="at-indices">Indices</button>
+      <button class="at-btn" onclick="selectAnalysis('stats')" id="at-stats">Stats</button>
+      <button class="at-btn" onclick="selectAnalysis('pca')" id="at-pca">PCA</button>
+      <button class="at-btn" onclick="selectAnalysis('ppi')" id="at-ppi">PPI</button>
+      <button class="at-btn" onclick="selectAnalysis('sam')" id="at-sam">SAM</button>
+      <button class="at-btn" onclick="selectAnalysis('lsu')" id="at-lsu">LSU</button>
+      <button class="at-btn" onclick="selectAnalysis('classify')" id="at-classify">Classify</button>
+      <button class="at-btn" onclick="selectAnalysis('cluster')" id="at-cluster">Cluster</button>
+    </div>
+
+    <!-- Spectral Indices panel -->
+    <div id="ap-indices" class="analysis-panel">
+      <div class="control-group">
+        <label>Index</label>
+        <select id="indexSelect" class="select-input">
+          {% for key, info in indices.items %}
+          <option value="{{ key }}">{{ info.name }} — {{ info.desc }}</option>
+          {% endfor %}
+          <option value="custom">Custom Two-Band Index</option>
+        </select>
+      </div>
+      <div id="custom-index-opts" class="hidden">
+        <div class="control-group">
+          <label>Band 1 Wavelength (nm)</label>
+          <input type="number" id="b1wl" value="842" class="input-sm" />
+        </div>
+        <div class="control-group">
+          <label>Band 2 Wavelength (nm)</label>
+          <input type="number" id="b2wl" value="665" class="input-sm" />
+        </div>
+        <div class="control-group">
+          <label>Formula</label>
+          <select id="idxFormula" class="select-input">
+            <option value="ndiff">(B1-B2)/(B1+B2)</option>
+            <option value="ratio">B1/B2</option>
+            <option value="diff">B1-B2</option>
+          </select>
+        </div>
+      </div>
+      <div class="control-group">
+        <label>Sensor</label>
+        <select id="idx-sensor" class="select-input">
+          <option value="vnir">VNIR</option>
+          <option value="swir">SWIR</option>
+        </select>
+      </div>
+      <button class="btn-primary btn-full" onclick="runIndex()" id="runIdxBtn">
+        <span id="runIdxText">▶ Compute Index</span>
+        <div class="btn-spinner hidden" id="runIdxSpinner"></div>
+      </button>
+    </div>
+
+    <!-- Band Stats panel -->
+    <div id="ap-stats" class="analysis-panel hidden">
+      <div class="control-group">
+        <label>Sensor</label>
+        <select id="stats-sensor" class="select-input">
+          <option value="vnir">VNIR</option>
+          <option value="swir">SWIR</option>
+        </select>
+      </div>
+      <button class="btn-primary btn-full" onclick="runStats()" id="runStatsBtn">
+        <span id="runStatsText">▶ Compute Statistics</span>
+        <div class="btn-spinner hidden" id="runStatsSpinner"></div>
+      </button>
+    </div>
+
+    <!-- PCA panel -->
+    <div id="ap-pca" class="analysis-panel hidden">
+      <div class="control-group">
+        <label>Number of Components</label>
+        <input type="number" id="pcaComp" value="5" min="2" max="10" class="input-sm" />
+      </div>
+      <div class="control-group">
+        <label>Sensor</label>
+        <select id="pca-sensor" class="select-input">
+          <option value="vnir">VNIR</option>
+          <option value="swir">SWIR</option>
+        </select>
+      </div>
+      <div class="info-box">⚠ Loads full spectral cube. May take 1–2 min.</div>
+      <button class="btn-primary btn-full" onclick="runPCA()" id="runPCABtn">
+        <span id="runPCAText">▶ Run PCA</span>
+        <div class="btn-spinner hidden" id="runPCASpinner"></div>
+      </button>
+    </div>
+
+    <!-- PPI panel -->
+    <div id="ap-ppi" class="analysis-panel hidden">
+      <div class="control-group">
+        <label>Iterations</label>
+        <input type="number" id="ppiIter" value="500" min="100" max="5000" class="input-sm" />
+      </div>
+      <div class="control-group">
+        <label>Sensor</label>
+        <select id="ppi-sensor" class="select-input">
+          <option value="vnir">VNIR</option>
+          <option value="swir">SWIR</option>
+        </select>
+      </div>
+      <div class="info-box">🔍 PPI projects pixels onto random vectors to find spectrally pure endmembers.</div>
+      <button class="btn-primary btn-full" onclick="runPPI()" id="runPPIBtn">
+        <span id="runPPIText">▶ Run PPI</span>
+        <div class="btn-spinner hidden" id="runPPISpinner"></div>
+      </button>
+    </div>
+
+    <!-- SAM panel -->
+    <div id="ap-sam" class="analysis-panel hidden">
+      <div class="control-group">
+        <label>Sensor</label>
+        <select id="sam-sensor" class="select-input">
+          <option value="vnir">VNIR</option>
+          <option value="swir">SWIR</option>
+        </select>
+      </div>
+      <div class="info-box">🎯 SAM computes spectral angle to classify materials. Runs PPI first if no endmembers
+        cached.</div>
+      <button class="btn-primary btn-full" onclick="runSAM()" id="runSAMBtn">
+        <span id="runSAMText">▶ Run SAM</span>
+        <div class="btn-spinner hidden" id="runSAMSpinner"></div>
+      </button>
+    </div>
+
+    <!-- LSU panel -->
+    <div id="ap-lsu" class="analysis-panel hidden">
+      <div class="control-group">
+        <label>Sensor</label>
+        <select id="lsu-sensor" class="select-input">
+          <option value="vnir">VNIR</option>
+          <option value="swir">SWIR</option>
+        </select>
+      </div>
+      <div class="info-box">🧪 LSU unmixes pixels into endmember abundance fractions using NNLS.</div>
+      <button class="btn-primary btn-full" onclick="runLSU()" id="runLSUBtn">
+        <span id="runLSUText">▶ Run LSU</span>
+        <div class="btn-spinner hidden" id="runLSUSpinner"></div>
+      </button>
+    </div>
+
+    <!-- Classification panel -->
+    <div id="ap-classify" class="analysis-panel hidden">
+      <div class="control-group">
+        <label>Method</label>
+        <select id="clf-method" class="select-input">
+          <option value="rf">Random Forest</option>
+          <option value="svm">SVM (RBF Kernel)</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label>Number of Classes</label>
+        <input type="number" id="clf-ncls" value="6" min="2" max="20" class="input-sm" />
+      </div>
+      <div class="control-group">
+        <label>Sensor</label>
+        <select id="clf-sensor" class="select-input">
+          <option value="vnir">VNIR</option>
+          <option value="swir">SWIR</option>
+        </select>
+      </div>
+      <button class="btn-primary btn-full" onclick="runClassify()" id="runClfBtn">
+        <span id="runClfText">▶ Run Classification</span>
+        <div class="btn-spinner hidden" id="runClfSpinner"></div>
+      </button>
+    </div>
+
+    <!-- Clustering panel -->
+    <div id="ap-cluster" class="analysis-panel hidden">
+      <div class="control-group">
+        <label>Method</label>
+        <select id="clu-method" class="select-input">
+          <option value="kmeans">K-Means</option>
+          <option value="spectral">Spectral Clustering</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label>Number of Clusters</label>
+        <input type="number" id="clu-k" value="8" min="2" max="20" class="input-sm" />
+      </div>
+      <div class="control-group">
+        <label>Sensor</label>
+        <select id="clu-sensor" class="select-input">
+          <option value="vnir">VNIR</option>
+          <option value="swir">SWIR</option>
+        </select>
+      </div>
+      <button class="btn-primary btn-full" onclick="runCluster()" id="runCluBtn">
+        <span id="runCluText">▶ Run Clustering</span>
+        <div class="btn-spinner hidden" id="runCluSpinner"></div>
+      </button>
+    </div>
+
+    <a href="{% url 'viewer' df.pk %}" class="btn-outline btn-sm-full mt-auto">← Back to Viewer</a>
+  </div>
+
+  <!-- Results area -->
+  <div class="analysis-results">
+
+    <!-- Index result -->
+    <div id="idx-result" class="hidden">
+      <div class="glass-card result-card">
+        <h4 id="idxTitle">Index Map</h4>
+        <div class="idx-info-bar" id="idxInfo"></div>
+        <div class="idx-img-wrap" id="idxImgWrap"></div>
+        <div class="idx-stats-row" id="idxStatsRow"></div>
+      </div>
+    </div>
+
+    <!-- Stats result -->
+    <div id="stats-result" class="hidden">
+      <div class="glass-card">
+        <h4>Band Statistics</h4>
+        <div id="statsChart" style="min-height:300px"></div>
+      </div>
+      <div class="glass-card mt-12">
+        <h4>Stats Table</h4>
+        <div class="table-scroll" id="statsTableWrap"></div>
+      </div>
+    </div>
+
+    <!-- PCA result -->
+    <div id="pca-result" class="hidden">
+      <div class="glass-card">
+        <h4>PCA Explained Variance</h4>
+        <div id="pcaVarChart" style="min-height:250px"></div>
+      </div>
+      <div class="glass-card mt-12">
+        <h4>Principal Component Images</h4>
+        <div class="pc-images-grid" id="pcImagesGrid"></div>
+      </div>
+    </div>
+
+    <!-- PPI result -->
+    <div id="ppi-result" class="hidden">
+      <div class="glass-card result-card">
+        <h4>PPI Endmember Extraction</h4>
+        <div class="idx-info-bar" id="ppiInfo"></div>
+        <div class="idx-img-wrap" id="ppiImgWrap"></div>
+      </div>
+      <div class="glass-card mt-12">
+        <h4>Endmember Spectra</h4>
+        <div id="ppiChart" style="min-height:300px"></div>
+      </div>
+    </div>
+
+    <!-- SAM result -->
+    <div id="sam-result" class="hidden">
+      <div class="before-after-grid">
+        <div class="glass-card result-card">
+          <h4>SAM Classification</h4>
+          <div class="idx-info-bar" id="samInfo"></div>
+          <div class="idx-img-wrap" id="samClassWrap"></div>
+        </div>
+        <div class="glass-card result-card">
+          <h4>Spectral Angle (EM-1)</h4>
+          <div class="idx-img-wrap" id="samAngleWrap"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- LSU result -->
+    <div id="lsu-result" class="hidden">
+      <div class="glass-card">
+        <h4>LSU Abundance Maps</h4>
+        <div class="idx-info-bar" id="lsuInfo"></div>
+        <div class="pc-images-grid" id="lsuGrid"></div>
+      </div>
+    </div>
+
+    <!-- Classification result -->
+    <div id="classify-result" class="hidden">
+      <div class="glass-card result-card">
+        <h4 id="clfTitle">Classification Map</h4>
+        <div class="idx-info-bar" id="clfInfo"></div>
+        <div class="idx-img-wrap" id="clfImgWrap"></div>
+        <div class="idx-stats-row" id="clfMetrics"></div>
+      </div>
+    </div>
+
+    <!-- Clustering result -->
+    <div id="cluster-result" class="hidden">
+      <div class="glass-card result-card">
+        <h4 id="cluTitle">Cluster Map</h4>
+        <div class="idx-info-bar" id="cluInfo"></div>
+        <div class="idx-img-wrap" id="cluImgWrap"></div>
+      </div>
+      <div class="glass-card mt-12">
+        <h4>Cluster Centroids</h4>
+        <div id="cluChart" style="min-height:300px"></div>
+      </div>
+    </div>
+
+    <!-- Empty state -->
+    <div class="glass-card empty-result" id="emptyAnalysis">
+      <div style="font-size:3rem">📊</div>
+      <h4>Select an analysis tool and run it</h4>
+      <p>Results will appear here</p>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  const FILE_PK = {{ df.pk }};
+  let cachedEndmembers = null;
+
+  function selectAnalysis(type) {
+    document.querySelectorAll('.at-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('at-' + type).classList.add('active');
+    document.querySelectorAll('.analysis-panel').forEach(p => p.classList.add('hidden'));
+    document.getElementById('ap-' + type).classList.remove('hidden');
+  }
+
+  document.getElementById('indexSelect').addEventListener('change', function () {
+    document.getElementById('custom-index-opts').classList.toggle('hidden', this.value !== 'custom');
+  });
+
+  function setRunning(prefix, running) {
+    document.getElementById('run' + prefix + 'Text').classList.toggle('hidden', running);
+    document.getElementById('run' + prefix + 'Spinner').classList.toggle('hidden', !running);
+    document.getElementById('run' + prefix + 'Btn').disabled = running;
+  }
+
+  function showResult(type) {
+    ['idx', 'stats', 'pca', 'ppi', 'sam', 'lsu', 'classify', 'cluster'].forEach(t => {
+      const el = document.getElementById(t + '-result');
+      if (el) el.classList.add('hidden');
+    });
+    document.getElementById('emptyAnalysis').classList.add('hidden');
+    document.getElementById(type + '-result').classList.remove('hidden');
+  }
+
+  // ── Index ──
+  function runIndex() {
+    setRunning('Idx', true);
+    const index = document.getElementById('indexSelect').value;
+    const sensor = document.getElementById('idx-sensor').value;
+    const body = {
+      index, sensor,
+      band1_wl: parseFloat(document.getElementById('b1wl').value),
+      band2_wl: parseFloat(document.getElementById('b2wl').value),
+      formula: document.getElementById('idxFormula').value
+    };
+    fetch(`/api/index/${FILE_PK}/`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+      body: JSON.stringify(body)
+    }).then(r => r.json()).then(d => {
+      setRunning('Idx', false);
+      if (d.error) { alert('Error: ' + d.error); return; }
+      showResult('idx');
+      document.getElementById('idxTitle').textContent = index.toUpperCase() + ' Index Map';
+      document.getElementById('idxInfo').textContent = d.info;
+      document.getElementById('idxImgWrap').innerHTML = `<img src="data:image/png;base64,${d.image}" class="result-img"/>`;
+      const s = d.stats;
+      document.getElementById('idxStatsRow').innerHTML =
+        `<div class="stat-pill">Min: <b>${s.min.toFixed(4)}</b></div>
+       <div class="stat-pill">Max: <b>${s.max.toFixed(4)}</b></div>
+       <div class="stat-pill">Mean: <b>${s.mean.toFixed(4)}</b></div>
+       <div class="stat-pill">Std: <b>${s.std.toFixed(4)}</b></div>`;
+    }).catch(e => { setRunning('Idx', false); alert(e); });
+  }
+
+  // ── Stats ──
+  function runStats() {
+    setRunning('Stats', true);
+    const sensor = document.getElementById('stats-sensor').value;
+    fetch(`/api/band-stats/${FILE_PK}/?sensor=${sensor}`)
+      .then(r => r.json()).then(d => {
+        setRunning('Stats', false);
+        if (d.error) { alert(d.error); return; }
+        showResult('stats');
+        const cd = JSON.parse(d.chart);
+        Plotly.newPlot('statsChart', cd.data, cd.layout, { responsive: true, displayModeBar: false });
+        let html = '<table class="data-table"><thead><tr><th>Band</th><th>Min</th><th>Max</th><th>Mean</th><th>Std</th><th>Median</th></tr></thead><tbody>';
+        d.stats.forEach(s => {
+          html += `<tr><td>${s.band}</td><td>${s.min.toFixed(2)}</td><td>${s.max.toFixed(2)}</td>
+                 <td>${s.mean.toFixed(2)}</td><td>${s.std.toFixed(2)}</td><td>${(s.median || 0).toFixed(2)}</td></tr>`;
+        });
+        html += '</tbody></table>';
+        document.getElementById('statsTableWrap').innerHTML = html;
+      }).catch(e => { setRunning('Stats', false); alert(e); });
+  }
+
+  // ── PCA ──
+  function runPCA() {
+    setRunning('PCA', true);
+    const body = {
+      sensor: document.getElementById('pca-sensor').value,
+      n_components: parseInt(document.getElementById('pcaComp').value)
+    };
+    fetch(`/api/pca/${FILE_PK}/`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+      body: JSON.stringify(body)
+    }).then(r => r.json()).then(d => {
+      setRunning('PCA', false);
+      if (d.error) { alert('Error: ' + d.error); return; }
+      showResult('pca');
+      const vd = JSON.parse(d.variance_chart);
+      Plotly.newPlot('pcaVarChart', vd.data, vd.layout, { responsive: true, displayModeBar: false });
+      let grid = '';
+      d.pc_images.forEach((img, i) => {
+        grid += `<div class="pc-img-card"><img src="data:image/png;base64,${img}" class="pc-img"/><span>PC ${i + 1} (${(d.explained_variance[i] * 100).toFixed(1)}%)</span></div>`;
+      });
+      document.getElementById('pcImagesGrid').innerHTML = grid;
+    }).catch(e => { setRunning('PCA', false); alert(e); });
+  }
+
+  // ── PPI ──
+  function runPPI() {
+    setRunning('PPI', true);
+    const body = {
+      sensor: document.getElementById('ppi-sensor').value,
+      n_iterations: parseInt(document.getElementById('ppiIter').value)
+    };
+    fetch(`/api/ppi/${FILE_PK}/`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+      body: JSON.stringify(body)
+    }).then(r => r.json()).then(d => {
+      setRunning('PPI', false);
+      if (d.error) { alert('Error: ' + d.error); return; }
+      showResult('ppi');
+      cachedEndmembers = d.endmembers;
+      document.getElementById('ppiInfo').textContent = d.info;
+      document.getElementById('ppiImgWrap').innerHTML = `<img src="data:image/png;base64,${d.ppi_image}" class="result-img"/>`;
+      const cd = JSON.parse(d.endmember_chart);
+      Plotly.newPlot('ppiChart', cd.data, cd.layout, { responsive: true, displayModeBar: false });
+    }).catch(e => { setRunning('PPI', false); alert(e); });
+  }
+
+  // ── SAM ──
+  function runSAM() {
+    setRunning('SAM', true);
+    const body = {
+      sensor: document.getElementById('sam-sensor').value,
+      endmembers: cachedEndmembers
+    };
+    fetch(`/api/sam/${FILE_PK}/`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+      body: JSON.stringify(body)
+    }).then(r => r.json()).then(d => {
+      setRunning('SAM', false);
+      if (d.error) { alert('Error: ' + d.error); return; }
+      showResult('sam');
+      document.getElementById('samInfo').textContent = d.info;
+      document.getElementById('samClassWrap').innerHTML = `<img src="data:image/png;base64,${d.class_image}" class="result-img"/>`;
+      document.getElementById('samAngleWrap').innerHTML = `<img src="data:image/png;base64,${d.angle_image}" class="result-img"/>`;
+    }).catch(e => { setRunning('SAM', false); alert(e); });
+  }
+
+  // ── LSU ──
+  function runLSU() {
+    setRunning('LSU', true);
+    const body = {
+      sensor: document.getElementById('lsu-sensor').value,
+      endmembers: cachedEndmembers
+    };
+    fetch(`/api/lsu/${FILE_PK}/`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+      body: JSON.stringify(body)
+    }).then(r => r.json()).then(d => {
+      setRunning('LSU', false);
+      if (d.error) { alert('Error: ' + d.error); return; }
+      showResult('lsu');
+      document.getElementById('lsuInfo').textContent = d.info;
+      let grid = '';
+      d.abundance_images.forEach((img, i) => {
+        grid += `<div class="pc-img-card"><img src="data:image/png;base64,${img}" class="pc-img"/><span>EM-${i + 1}</span></div>`;
+      });
+      document.getElementById('lsuGrid').innerHTML = grid;
+    }).catch(e => { setRunning('LSU', false); alert(e); });
+  }
+
+  // ── Classification ──
+  function runClassify() {
+    setRunning('Clf', true);
+    const body = {
+      sensor: document.getElementById('clf-sensor').value,
+      method: document.getElementById('clf-method').value,
+      n_clusters: parseInt(document.getElementById('clf-ncls').value)
+    };
+    fetch(`/api/classify/${FILE_PK}/`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+      body: JSON.stringify(body)
+    }).then(r => r.json()).then(d => {
+      setRunning('Clf', false);
+      if (d.error) { alert('Error: ' + d.error); return; }
+      showResult('classify');
+      document.getElementById('clfTitle').textContent = body.method.toUpperCase() + ' Classification';
+      document.getElementById('clfInfo').textContent = d.info;
+      document.getElementById('clfImgWrap').innerHTML = `<img src="data:image/png;base64,${d.class_image}" class="result-img"/>`;
+      const m = d.metrics;
+      document.getElementById('clfMetrics').innerHTML =
+        `<div class="stat-pill">Train Acc: <b>${(m.train_acc * 100).toFixed(1)}%</b></div>
+       <div class="stat-pill">Test Acc: <b>${(m.test_acc * 100).toFixed(1)}%</b></div>
+       <div class="stat-pill">Classes: <b>${d.n_classes}</b></div>`;
+    }).catch(e => { setRunning('Clf', false); alert(e); });
+  }
+
+  // ── Clustering ──
+  function runCluster() {
+    setRunning('Clu', true);
+    const body = {
+      sensor: document.getElementById('clu-sensor').value,
+      method: document.getElementById('clu-method').value,
+      n_clusters: parseInt(document.getElementById('clu-k').value)
+    };
+    fetch(`/api/cluster/${FILE_PK}/`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+      body: JSON.stringify(body)
+    }).then(r => r.json()).then(d => {
+      setRunning('Clu', false);
+      if (d.error) { alert('Error: ' + d.error); return; }
+      showResult('cluster');
+      document.getElementById('cluTitle').textContent = body.method.charAt(0).toUpperCase() + body.method.slice(1) + ' Clustering';
+      document.getElementById('cluInfo').textContent = d.info;
+      document.getElementById('cluImgWrap').innerHTML = `<img src="data:image/png;base64,${d.cluster_image}" class="result-img"/>`;
+      const cd = JSON.parse(d.centroid_chart);
+      Plotly.newPlot('cluChart', cd.data, cd.layout, { responsive: true, displayModeBar: false });
+    }).catch(e => { setRunning('Clu', false); alert(e); });
+  }
+
+  function getCsrf() {
+    const v = document.cookie.match('(^|;) ?csrftoken=([^;]*)(;|$)');
+    return v ? v[2] : null;
+  }
+</script>
+{% endblock %}
+{% endwith %}

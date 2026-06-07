@@ -1,0 +1,158 @@
+{% extends 'core/base.html' %}
+{% block title %}Import Data{% endblock %}
+{% block page_title %}Import Hyperspectral Data{% endblock %}
+{% block content %}
+<div class="upload-page">
+
+  <div class="upload-main glass-card">
+    <h3 class="card-title">📡 Load Data File</h3>
+    <p class="card-desc">Upload a PRISMA HE5 file or GeoTIFF, or point to a file already on disk.</p>
+
+    <!-- Tab switcher -->
+    <div class="tab-switcher" id="uploadTabs">
+      <button class="tab-btn active" onclick="switchTab('disk')" id="tab-disk">📁 Use Disk Path</button>
+      <button class="tab-btn" onclick="switchTab('upload')" id="tab-upload">⬆ Upload File</button>
+    </div>
+
+    <form method="post" enctype="multipart/form-data" id="uploadForm">
+      {% csrf_token %}
+
+      <!-- Disk path panel -->
+      <div class="tab-panel active" id="panel-disk">
+        <div class="form-group">
+          <label>Full Path to HE5 / TIFF File</label>
+          <div class="input-wrap">
+            <input type="text" name="disk_path" id="diskPathInput"
+                   placeholder="e.g. D:\hyperspectral\data\PRS_L1_STD_OFFL_...he5"
+                   class="path-input"/>
+          </div>
+        </div>
+
+        {% if suggestions %}
+        <div class="suggestions-box">
+          <h4>📂 Detected files in data/ folder</h4>
+          <div class="suggestion-list">
+            {% for s in suggestions %}
+            <div class="suggestion-item" onclick="selectSuggestion('{{ s.path|escapejs }}')">
+              <div class="sug-icon">{% if '.he5' in s.name or '.h5' in s.name %}🛰{% else %}🗺{% endif %}</div>
+              <div class="sug-info">
+                <span class="sug-name">{{ s.name }}</span>
+                <span class="sug-size">{{ s.size|filesizeformat }}</span>
+              </div>
+              <div class="sug-arrow">→</div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Upload panel -->
+      <div class="tab-panel" id="panel-upload">
+        <div class="dropzone" id="dropzone"
+             ondragover="handleDragOver(event)"
+             ondragleave="handleDragLeave(event)"
+             ondrop="handleDrop(event)">
+          <div class="dropzone-icon">🛰️</div>
+          <h4>Drag & Drop HE5 or TIFF file here</h4>
+          <p>or</p>
+          <label class="btn-primary" for="fileInput" style="cursor:pointer">Browse Files</label>
+          <input type="file" name="data_file" id="fileInput" accept=".he5,.h5,.hdf5,.tif,.tiff"
+                 style="display:none" onchange="handleFileSelect(event)"/>
+          <div id="fileInfo" class="file-info hidden"></div>
+        </div>
+        <div class="progress-wrap hidden" id="progressWrap">
+          <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+          <span id="progressText">Uploading...</span>
+        </div>
+      </div>
+
+      <button type="submit" class="btn-primary btn-full" id="submitBtn">
+        <span id="submitText">Load File →</span>
+        <div class="btn-spinner hidden" id="submitSpinner"></div>
+      </button>
+    </form>
+  </div>
+
+  <!-- Info panel -->
+  <div class="upload-info">
+    <div class="glass-card info-card">
+      <h4>📋 Supported Formats</h4>
+      <ul class="format-list">
+        <li><span class="badge-he5">HE5</span> PRISMA L1/L2B/L2C/L2D</li>
+        <li><span class="badge-tiff">TIFF</span> Single/Multi-band GeoTIFF</li>
+        <li><span class="badge-envi">ENVI</span> HDR + IMG format</li>
+      </ul>
+    </div>
+    <div class="glass-card info-card">
+      <h4>⚙ PRISMA Bands</h4>
+      <div class="band-info-grid">
+        <div class="band-info-item">
+          <div class="band-color" style="background:linear-gradient(to right,#7b2ff7,#00d4ff)"></div>
+          <span>VNIR: ~400–1010nm</span>
+          <span class="band-count">66 bands</span>
+        </div>
+        <div class="band-info-item">
+          <div class="band-color" style="background:linear-gradient(to right,#ff6b35,#ff0000)"></div>
+          <span>SWIR: ~920–2505nm</span>
+          <span class="band-count">174 bands</span>
+        </div>
+      </div>
+    </div>
+    <div class="glass-card info-card">
+      <h4>💡 Tips</h4>
+      <ul class="tips-list">
+        <li>For large HE5 files (&gt;500MB) use the disk path option</li>
+        <li>GeoTIFF files from corrected outputs are supported</li>
+        <li>VNIR bands cover visible to near-infrared</li>
+        <li>SWIR bands are ideal for mineral mapping</li>
+      </ul>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  document.getElementById('panel-' + tab).classList.add('active');
+}
+
+function selectSuggestion(path) {
+  document.getElementById('diskPathInput').value = path;
+  document.querySelectorAll('.suggestion-item').forEach(i => i.classList.remove('selected'));
+  event.currentTarget.classList.add('selected');
+}
+
+function handleDragOver(e) {
+  e.preventDefault();
+  document.getElementById('dropzone').classList.add('dragover');
+}
+function handleDragLeave(e) {
+  document.getElementById('dropzone').classList.remove('dragover');
+}
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('dropzone').classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) setFileDisplay(file);
+}
+function handleFileSelect(e) {
+  const file = e.target.files[0];
+  if (file) setFileDisplay(file);
+}
+function setFileDisplay(file) {
+  const info = document.getElementById('fileInfo');
+  const mb = (file.size / 1024 / 1024).toFixed(1);
+  info.innerHTML = `<div class="file-selected">📄 <strong>${file.name}</strong> (${mb} MB)</div>`;
+  info.classList.remove('hidden');
+}
+document.getElementById('uploadForm').addEventListener('submit', function() {
+  document.getElementById('submitText').classList.add('hidden');
+  document.getElementById('submitSpinner').classList.remove('hidden');
+  document.getElementById('submitBtn').disabled = true;
+});
+</script>
+{% endblock %}

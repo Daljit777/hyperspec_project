@@ -1,0 +1,43 @@
+# Git Ignore File for Django / Hyperspectral Project
+
+# Virtual Environment
+hypenv/
+venv/
+ENV/
+env/
+.venv/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Databases
+db.sqlite3
+*.db
+
+# Django media, uploads, static and data directories
+/media/
+/staticfiles/
+/uploads/
+/processed/
+/data/
+
+# Hyperspectral / Geospatial Data File Formats (just in case they are outside data/)
+*.he5
+*.h5
+*.hdf5
+*.tiff
+*.tif
+*.hdr
+*.img
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/
+
+# User-specific / Local configurations
+.vscode/
+.idea/
+*.log
+*.sqlite3
